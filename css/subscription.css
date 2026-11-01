@@ -70,3 +70,13 @@
 .sub-meter .now small { color: var(--ink); font-weight: 700; }
 .sub-nudge .sub-mascot { width: 96px; }
 .sub-nudge h2 { margin: 0; }
+
+/* Pro sections (free app + Pro): badge on links to locked sections, the #pro lock page and the admin picker. */
+.pro-tag { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: .72rem; font-weight: 800; letter-spacing: .04em; line-height: 1.5; color: #fff; background: linear-gradient(135deg, #f59e0b, #e11d74); vertical-align: middle; direction: ltr; }
+a.pro-lock { position: relative; }
+a.pro-lock::after { content: 'PRO'; position: absolute; top: 2px; inset-inline-end: 2px; padding: 0 5px; border-radius: 5px; font-size: .6rem; font-weight: 800; line-height: 1.5; letter-spacing: .03em; color: #fff; background: linear-gradient(135deg, #f59e0b, #e11d74); pointer-events: none; }
+.card.tool.pro-lock::after { top: 10px; inset-inline-end: 10px; font-size: .68rem; }
+.nav a.pro-lock::after { top: -4px; inset-inline-end: -6px; }
+.pro-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.pro-list span { padding: 6px 12px; border-radius: 999px; background: var(--sun-soft, #fff4d6); border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent); font-size: .9rem; }
+.pro-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 14px; }
