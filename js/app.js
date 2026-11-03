@@ -203,14 +203,14 @@
     const opts = { body: text, icon: 'img/icon.svg', badge: 'img/icon.svg', lang: 'fa', dir: 'rtl', tag: 'uzhu-' + Date.now() };
     try { if (swReg) swReg.showNotification('حبه 🌱', opts); else new Notification('حبه 🌱', opts); } catch (e) {}
   }
-  function todaysReminders(d = dayObj(), dayN = D().day) {
+  function todaysReminders(d = dayObj(), dayN = D().day, date = new Date()) {
     const s = D(); if (!d || !s.profile) return [];
     const times = [...s.settings.times].sort();
     const list = (d.reminders || []).slice(0, 4).map((r, i) => ({ time: times[Math.min(i, times.length - 1)], text: r.text }));
     const night = times[times.length - 1];
-    list.push({ time: addMinDay(night, 15), text: 'وقت چک‌لیست شبانه‌ست 🌙 دو دقیقه وقت بذار و روزت رو تیک بزن.', spot: 'moon' });
+    list.push({ time: addMinDay(night, 15), text: 'وقت چک‌لیست شبانه‌ست 🌙 دو دقیقه وقت بذار و روزت رو تیک بزن.', spot: 'moon', kind: 'night' });
     const ct = { morning: '11:00', afternoon: '16:00', evening: '19:30', night: '22:30' }[s.profile.cravingTime];
-    if (ct) list.push({ time: ct, text: 'این ساعت‌ها معمولاً هوس شیرینی سراغت میاد. یه لیوان آب و چند تا گردو آماده کن. اگه سخت شد، دکمه‌ی «هوس دارم» رو بزن.', spot: 'water' });
+    if (ct) list.push({ time: ct, text: 'این ساعت‌ها معمولاً هوس شیرینی سراغت میاد. یه لیوان آب و چند تا گردو آماده کن. اگه سخت شد، دکمه‌ی «هوس دارم» رو بزن.', spot: 'water', kind: 'crave' });
     if (s.settings.moveRem !== false) {
       const ex = exDay(s.cycle, dayN);
       const rs = EX.reminders || [];
@@ -219,7 +219,10 @@
       list.push({ time: addMinDay(times[0], 150), text: rs.length ? rs[(exIndex(s.cycle, dayN) * 2 + 1) % rs.length] : '۱۰ تا نفس شکمی؛ همین الان، همون‌جا که نشستی 🌬️', spot: 'water', url: '#move' });
     }
     (H.reminders || []).forEach(f => { try { list.push(...(f(dayN) || [])); } catch (e) {} });
-    return list.sort((a, b) => a.time.localeCompare(b.time));
+    // Plugins may drop or move reminders (js/ux.js: quiet hours, quiet weekdays, reminder types).
+    let out = list;
+    for (const f of H.reminderFilter || []) { try { out = f(out, date, dayN) || out; } catch (e) { console.error(e); } }
+    return out.sort((a, b) => a.time.localeCompare(b.time));
   }
   // Upcoming reminders for the next 7 days, handed to the server so they arrive even when the site is closed.
   function buildSchedule() {
@@ -230,9 +233,10 @@
     let last = 0;
     for (let off = 0; off < 7; off++) {
       const n = s.day + off; if (n > 21) break;
-      todaysReminders(c.days[n - 1], n).forEach(r => { const t = at(off, r.time); if (t > now) { out.push({ at: new Date(t).toISOString(), text: r.text, url: './' + (r.url || '#today') }); last = off; } });
+      const day = new Date(); day.setDate(day.getDate() + off);
+      todaysReminders(c.days[n - 1], n, day).forEach(r => { const t = at(off, r.time); if (t > now) { out.push({ at: new Date(t).toISOString(), text: r.text, url: './' + (r.url || '#today') }); last = off; } });
     }
-    [last + 2, last + 4, last + 8].forEach(off => out.push({ at: new Date(at(off, s.settings.times[0])).toISOString(), text: 'دلمون برات تنگ شده 🌱 برنامه‌ی امروزت منتظرته. حتی اگه چند روز دور بودی، از همین امروز ادامه بده.', url: './#today' }));
+    if (s.ux?.miss !== false) [last + 2, last + 4, last + 8].forEach(off => out.push({ at: new Date(at(off, s.settings.times[0])).toISOString(), text: 'دلمون برات تنگ شده 🌱 برنامه‌ی امروزت منتظرته. حتی اگه چند روز دور بودی، از همین امروز ادامه بده.', url: './#today' }));
     return out;
   }
   const b64 = s => { const p = '='.repeat((4 - s.length % 4) % 4); const r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...r].map(c => c.charCodeAt(0))); };
@@ -893,7 +897,9 @@
     $$('[data-th]').forEach(b => b.onclick = () => { const t = b.dataset.th; if (t !== 'system') document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; try { localStorage.setItem('uzhu:theme', t); } catch (e) {} });
     $('#sv').onclick = async () => {
       const s = D(); s.settings.reminders = $('#rem').checked; s.settings.times = [0, 1, 2, 3].map(i => $('#t' + i).value || s.settings.times[i]); s.profile.level = $('#lvl').value; s.settings.moveRem = $('#mrem').checked; s.settings.moveTime = $('#mt').value || '18:00';
-      runHooks('settingsSave'); await save(); toast('ذخیره شد.', 'bell');
+      runHooks('settingsSave'); await save();
+      // js/ux.js auto-saves on every change and shows its own quiet "saved" mark instead of a toast.
+      if ($('#sv').dataset.quiet) delete $('#sv').dataset.quiet; else toast('ذخیره شد.', 'bell');
     };
     $('#out').onclick = async () => { let ep = null; try { const sub = swReg && await swReg.pushManager.getSubscription(); if (sub) { ep = sub.endpoint; await STORE.logout(ep); await sub.unsubscribe(); } else await STORE.logout(); } catch (e) { await STORE.logout(ep).catch(() => {}); } pushOn = false; user = null; go('home'); };
     $('#reset').onclick = () => { $('#resetok').hidden = false; };
